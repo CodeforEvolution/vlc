@@ -24,12 +24,12 @@
  *****************************************************************************/
 
 /*****************************************************************************
- * Preamble
+ * Headers
  *****************************************************************************/
 #include <malloc.h>
 
 #include <media/MediaDefs.h>
-#include <SoundPlayer.h>
+#include <media/SoundPlayer.h>
 
 #ifdef HAVE_CONFIG_H
 # include "config.h"
@@ -48,16 +48,16 @@ extern "C"
 
 typedef struct aout_sys_t
 {
-    BSoundPlayer * p_player;
+    BSoundPlayer* p_player;
     mtime_t        latency;
 } aout_sys_t;
 
 /*****************************************************************************
  * Local prototypes.
  *****************************************************************************/
-static void Play         ( void * p_aout, void * p_buffer, size_t size,
-                           const media_raw_audio_format & format );
-static void DoNothing    ( aout_instance_t * p_aout );
+static void Play         (void* p_aout, void* p_buffer, size_t size,
+                           const media_raw_audio_format & format);
+static void DoNothing    ( aout_instance_t* p_aout );
 
 /*****************************************************************************
  * OpenAudio
@@ -163,10 +163,139 @@ static void Play( void * _p_aout, void * _p_buffer, size_t i_size,
     }
 }
 
+// New stuff - Don't worry, a squash commit will make sure this comment never existed
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+#include <vlc_common.h>
+#include <vlc_plugin.h>
+#include <vlc_aout.h>
+#include <vlc_cpu.h>
+
 /*****************************************************************************
- * DoNothing
+ * aout_sys_t: Haiku audio output method descriptor
  *****************************************************************************/
-static void DoNothing( aout_instance_t *p_aout )
+typedef struct aout_sys_t
 {
-    return;
+    BSoundPlayer * p_player;
+    mtime_t        latency;
+} aout_sys_t;
+
+/*****************************************************************************
+ * Local prototypes
+ *****************************************************************************/
+static int  Open     (vlc_object_t* p_obj);
+static void Close    (vlc_object_t* p_obj);
+static void Play     (audio_output_t* p_aout, block_t*, vlc_tick_t tick);
+static void Pause    (audio_output_t* p_aout, bool b_paused, vlc_tick_t date);
+static void Flush    (audio_output_t* p_aout);
+static int  TimeGet  (audio_output_t* p_aout, vlc_tick_t* p_tick);
+
+/*****************************************************************************
+ * Haiku audio output module descriptor
+ *****************************************************************************/
+vlc_module_begin ()
+    set_shortname(N_("Haiku"))
+    set_description(N_("Haiku Mediakit audio output"))
+    set_capability("audio output", 100)
+    set_category(CAT_AUDIO)
+    set_subcategory(SUBCAT_AUDIO_AOUT)
+    set_callbacks(Open, Close)
+    add_shortcut("haiku")
+vlc_module_end ()
+
+/*****************************************************************************
+ * Play
+ *****************************************************************************/
+static void Play(audio_output_t* aout, block_t* block, vlc_tick_t date)
+{
+    block_Release( block );
+    (void) aout; (void) date;
+}
+
+/*****************************************************************************
+ * Pause
+ *****************************************************************************/
+static void Pause(audio_output_t* p_aout, bool b_paused, vlc_tick_t date)
+{
+    (void) aout; (void) paused; (void) date;
+}
+
+/*****************************************************************************
+ * Flush
+ *****************************************************************************/
+static void Flush(audio_output_t* aout)
+{
+    (void) aout;
+}
+
+/*****************************************************************************
+ * Start
+ *****************************************************************************/
+static int Start(audio_output_t* aout, audio_sample_format_t* restrict fmt)
+{
+    (void) aout;
+
+    switch (fmt->i_format)
+    {
+        case VLC_CODEC_A52:
+        case VLC_CODEC_EAC3:
+            fmt->i_format = VLC_CODEC_SPDIFL;
+            fmt->i_bytes_per_frame = 4;
+            fmt->i_frame_length = 1;
+            break;
+        case VLC_CODEC_DTS:
+        case VLC_CODEC_TRUEHD:
+        case VLC_CODEC_MLP:
+            fmt->i_format = VLC_CODEC_SPDIFL;
+            fmt->i_rate = 768000;
+            fmt->i_bytes_per_frame = 16;
+            fmt->i_frame_length = 1;
+            break;
+        default:
+            assert(AOUT_FMT_LINEAR(fmt));
+            assert(aout_FormatNbChannels(fmt) > 0);
+            fmt->i_format = HAVE_FPU ? VLC_CODEC_FL32 : VLC_CODEC_S16N;
+            fmt->channel_type = AUDIO_CHANNEL_TYPE_BITMAP;
+            break;
+    }
+
+    return VLC_SUCCESS;
+}
+
+/*****************************************************************************
+ * Stop
+ *****************************************************************************/
+static void Stop(audio_output_t* aout)
+{
+    (void) aout;
+}
+
+/*****************************************************************************
+ * Open
+ *****************************************************************************/
+static int Open(vlc_object_t* obj)
+{
+    audio_output_t *aout = (audio_output_t*)obj;
+
+    aout->start = Start;
+    aout->time_get = aout_TimeGetDefault;
+    aout->play = Play;
+    aout->pause = Pause;
+    aout->flush = Flush;
+    aout->stop = Stop;
+    aout->volume_set = VolumeSet;
+    aout->mute_set = MuteSet;
+
+    return VLC_SUCCESS;
+}
+
+/*****************************************************************************
+ * Close
+ *****************************************************************************/
+static void Close(vlc_object_t* obj)
+{
+    
 }
