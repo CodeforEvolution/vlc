@@ -69,7 +69,7 @@ void CloseAudio ( vlc_object_t * p_this )
     /* Clean up */
     p_sys->p_player->Stop();
     delete p_sys->p_player;
-    free( p_sys );
+    free(p_sys);
 }
 
 /*****************************************************************************
@@ -151,18 +151,17 @@ static void Play( void * _p_aout, void * _p_buffer, size_t i_size,
  *****************************************************************************/
 typedef struct aout_sys_t
 {
-    BSoundPlayer* player;
-    
-    mtime_t       latency;
-    float         volume;
-    bool          mute;
+    BSoundPlayer*  player;
+    block_t*       data;
+    bool           mute;
+    float          volume;
 } aout_sys_t;
 
 /*****************************************************************************
  * Local prototypes
  *****************************************************************************/
-static int Start(audio_output_t* aout, audio_sample_format_t* restrict fmt)
-static void Stop(audio_output_t* aout)    
+static int Start        (audio_output_t* aout, audio_sample_format_t* restrict fmt)
+static void Stop        (audio_output_t* aout)    
 static int  TimeGet     (audio_output_t* aout, vlc_tick_t* delay);
 static void Play        (audio_output_t* aout, block_t* block, vlc_tick_t tick);
 static void PlayBuffer  (void* aout, void* buffer, size_t size,
@@ -193,7 +192,7 @@ vlc_module_end ()
  *****************************************************************************/
 static int Start(audio_output_t* aout, audio_sample_format_t* restrict fmt)
 {
-    (void) aout;
+    aout_sys_t* sys = aout->sys;
 
     switch (fmt->i_format)
     {
@@ -227,7 +226,23 @@ static int Start(audio_output_t* aout, audio_sample_format_t* restrict fmt)
  *****************************************************************************/
 static void Stop(audio_output_t* aout)
 {
-    (void) aout;
+    aout_sys_t* sys = aout->sys;
+    
+    sys->player->SetHasData(false);
+    sys->player->Stop();
+    
+    block_Release(data);
+}
+
+/*****************************************************************************
+ * TimeGet
+ *****************************************************************************/
+static void TimeGet(audio_output_t* aout, vlc_tick_t* delay)
+{
+    aout_sys_t* sys = aout->sys;
+    aout_sample_format_t* format = &sys->format;
+    
+    *delay = sys->player->Latency() + vlc_ticks_from_samples(, format->i_rate);
 }
 
 /*****************************************************************************
@@ -235,8 +250,13 @@ static void Stop(audio_output_t* aout)
  *****************************************************************************/
 static void Play(audio_output_t* aout, block_t* block, vlc_tick_t date)
 {
-    block_Release(block);
-    (void) aout; (void) date;
+    aout_sys_t* sys = aout->sys;
+    
+    
+    
+    sys->player->SetHasData(true);
+    
+    (void)date;
 }
 
 /*****************************************************************************
@@ -246,12 +266,10 @@ static void PlayBuffer(void* aout, void* buffer, size_t size,
                           const media_raw_audio_format &format)
 {
     audio_output_t* aout = (audio_output_t*)aout;
-    float* buffer = (float*)buffer;
-    aout_sys_t* sys = (aout_sys_t*)aout->sys;
-    aout_buffer_t* aout_buffer;
+    aout_sys_t* sys = aout->sys;
 
     aout_buffer = aout_OutputNextBuffer(aout, mdate() + sys->latency, false);
-
+    
     if (aout_buffer != NULL)
     {
         vlc_memcpy(buffer, aout_buffer->buffer,
@@ -263,10 +281,21 @@ static void PlayBuffer(void* aout, void* buffer, size_t size,
         }
         aout_BufferFree(aout_buffer);
     }
+}
+
+/*****************************************************************************
+ * Pause
+ *****************************************************************************/
+static void Pause(audio_output_t* aout, bool paused, vlc_tick_t date)
+{
+    aout_sys_t* sys = aout->sys;
+    
+    if (paused)
+        sys->player->SetHasData(false);
     else
-    {
-        vlc_memset(buffer, 0, size);
-    }
+        sys->player->SetHasData(true);
+    
+    (void)date;
 }
 
 /*****************************************************************************
@@ -274,15 +303,7 @@ static void PlayBuffer(void* aout, void* buffer, size_t size,
  *****************************************************************************/
 static void Flush(audio_output_t* aout)
 {
-    (void) aout;
-}
-
-/*****************************************************************************
- * Drain
- *****************************************************************************/
-static void Drain(audio_output_t* aout)
-{
-    (void) aout;
+    (void)aout;
 }
 
 /*****************************************************************************
@@ -325,14 +346,18 @@ static int MuteSet(audio_output_t* aout, bool mute)
 static int Open(vlc_object_t* obj)
 {
     audio_output_t* aout = (audio_output_t*)obj;
+    aout_sys_t* sys = malloc(sizeof(*sys));
+
+    if (unlikely(sys == NULL))
+        return VLC_ENOMEM;
 
     aout->start = Start;
     aout->stop = Stop;
     aout->time_get = aout_TimeGetDefault;
     aout->play = Play;
-    aout->pause = aout_PauseDefault;
+    aout->pause = Pause;
     aout->flush = Flush;
-    aout->drain = Drain;
+    aout->drain = NULL;
     aout->volume_set = VolumeSet;
     aout->mute_set = MuteSet;
     aout->device_select = NULL;
