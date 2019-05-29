@@ -252,8 +252,7 @@ static void Play(audio_output_t* aout, block_t* block, vlc_tick_t date)
 {
     aout_sys_t* sys = aout->sys;
     
-    
-    
+    sys->data = block;
     sys->player->SetHasData(true);
     
     (void)date;
@@ -303,7 +302,10 @@ static void Pause(audio_output_t* aout, bool paused, vlc_tick_t date)
  *****************************************************************************/
 static void Flush(audio_output_t* aout)
 {
-    (void)aout;
+    aout_sys_t* sys = aout->sys;
+    
+    sys->player->SetHasData(false);
+    block_Release(sys->data);
 }
 
 /*****************************************************************************
@@ -351,6 +353,7 @@ static int Open(vlc_object_t* obj)
     if (unlikely(sys == NULL))
         return VLC_ENOMEM;
 
+    aout->sys = sys;
     aout->start = Start;
     aout->stop = Stop;
     aout->time_get = aout_TimeGetDefault;
@@ -370,5 +373,8 @@ static int Open(vlc_object_t* obj)
  *****************************************************************************/
 static void Close(vlc_object_t* obj)
 {
-    (void) obj;
+    audio_output_t* aout = (audio_output_t*)obj;
+    aout->stop(aout);
+    
+    delete aout->sys->player;
 }
