@@ -189,33 +189,77 @@ static int Start(audio_output_t* aout, audio_sample_format_t* restrict fmt)
     if (unlikely(format == NULL))
         return VLC_ENOMEM;
     
-    format->channel_count = nb_channels;
     format->frame_rate = fmt->i_rate;
+    format->channel_count = nb_channels;
     
-    uint32 pcm_format;
+    uint32 audio_format;
+    uin32 endian = B_MEDIA_LITTLE_ENDIAN;
     switch (fmt->i_format) {
-        case VLC_CODEC_FL32:
-            pcm_format = B_AUDIO_FLOAT;
+        case VLC_CODEC_S8:
+        {
+            audio_format = media_raw_audio_format::B_AUDIO_CHAR;
             break;
-        case VLC_CODEC_S32N:
-            pcm_format = SND_PCM_FORMAT_S32;
-            break;
-        case VLC_CODEC_S16N:
-            pcm_format = SND_PCM_FORMAT_S16;
-            break;
+        }
         case VLC_CODEC_U8:
-            pcm_format = B_AUDIO_UCHAR;
-            break;       
+        {
+            audio_format = media_raw_audio_format::B_AUDIO_UCHAR;
+            break;
+        }
+        case VLC_CODEC_S16L:
+        {
+            audio_format = media_raw_audio_format::B_AUDIO_SHORT;
+            break;   
+        }
+        case VLC_CODEC_S16B:
+        {
+            audio_format = media_raw_audio_format::B_AUDIO_SHORT;
+            endian = B_MEDIA_BIG_ENDIAN;
+            break;   
+        }
+        case VLC_CODEC_S32L:
+        {
+            audio_format = media_raw_audio_format::B_AUDIO_INT;
+            break;   
+        }
+        case VLC_CODEC_S32B:
+        {
+            audio_format = media_raw_audio_format::B_AUDIO_INT;
+            endian = B_MEDIA_BIG_ENDIAN;
+            break;   
+        }
+        case VLC_CODEC_F32L:
+        {
+            audio_format = media_raw_audio_format::B_AUDIO_FLOAT;
+            break;   
+        }
+        case VLC_CODEC_F32B:
+        {
+            audio_format = media_raw_audio_format::B_AUDIO_FLOAT;
+            endian = B_MEDIA_BIG_ENDIAN;
+            break;    
+        }
+        default:
+        {
+            if (!AOUT_FMT_LINEAR(fmt) || aout_FormatNbChannels(fmt) == 0)
+                return VLC_EGENERIC;
+
+            if (HAVE_FPU)
+            {
+                fmt->i_format = VLC_CODEC_FL32;
+                audio_format = media_raw_audio_format::B_AUDIO_FLOAT;
+            }
+            else
+            {
+                fmt->i_format = VLC_CODEC_S16N;
+                audio_format = media_raw_audio_format::B_AUDIO_SHORT;
+                endian = B_MEDIA_HOST_ENDIAN;
+            }
+            break;
+        }
     }
     
-    #ifdef WORDS_BIGENDIAN
-    p_format->byte_order = B_MEDIA_BIG_ENDIAN;
-    #else
-    p_format->byte_order = B_MEDIA_LITTLE_ENDIAN;
-    #endif
-    
-    
-    
+    format->format = audio_format;
+    format->byte_order = endian;
     
     
     sys->player->Start();
