@@ -98,6 +98,7 @@ int OpenAudio ( vlc_object_t * p_this )
 #include <vlc_cpu.h>
 
 #include <media/MediaDefs.h>
+#include <media/Roster.h>
 #include <media/SoundPlayer.h>
 
 /*****************************************************************************
@@ -185,6 +186,7 @@ static int Start(audio_output_t* aout, audio_sample_format_t* restrict fmt)
         fmt.i_physical_channels
             = AOUT_CHAN_LEFT | AOUT_CHAN_RIGHT;
     }
+    aout_FormatPrepare(fmt);
     
     media_raw_audio_format* format;
     format = (media_raw_audio_format*)
@@ -193,8 +195,12 @@ static int Start(audio_output_t* aout, audio_sample_format_t* restrict fmt)
     if (unlikely(format == NULL))
         return VLC_ENOMEM;
     
+    format = media_raw_audio_format::wildcard;
+    
     format->frame_rate = fmt->i_rate;
     format->channel_count = nb_channels;
+    
+    fmt->channel_type = AUDIO_CHANNEL_TYPE_BITMAP;
     
     uint32 audio_format;
     switch (fmt->i_format) {
@@ -234,20 +240,14 @@ static int Start(audio_output_t* aout, audio_sample_format_t* restrict fmt)
             if (!AOUT_FMT_LINEAR(fmt) || aout_FormatNbChannels(fmt) == 0)
                 return VLC_EGENERIC;
 
-            if (HAVE_FPU)
-            {
-                fmt->i_format = VLC_CODEC_FL32;
-                audio_format = media_raw_audio_format::B_AUDIO_FLOAT;
-            }
-            else
-            {
-                fmt->i_format = VLC_CODEC_S16N;
-                audio_format = media_raw_audio_format::B_AUDIO_SHORT;
-            }
+            fmt->i_format = HAVE_FPU ? VLC_CODEC_FL32 : VLC_CODEC_S16N;
+            audio_format = HAVE_FPU ? media_raw_audio_format:B_AUDIO_FLOAT :
+                media_raw_audio_format::B_AUDIO_SHORT
+      
             break;
         }
     }
-    
+
     format->format = audio_format;
     format->byte_order = B_MEDIA_HOST_ENDIAN;
     
@@ -255,7 +255,7 @@ static int Start(audio_output_t* aout, audio_sample_format_t* restrict fmt)
     BMediaRoster* roster = BMediaRoster::Roster(&error);
     
     if (error != B_OK)
-        format->buffer_size = 0;
+        format->buffer_size = media_raw_audio_format::wildcard.buffer_size;
     else
         format->buffer_size = roster->AudioBufferSizeFor(format->channels,
             format->format, format->frame_rate, B_UNKNOWN_BUS);
