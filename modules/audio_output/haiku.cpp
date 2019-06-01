@@ -175,6 +175,10 @@ static int Start(audio_output_t* aout, audio_sample_format_t* restrict fmt)
     }
     
     int nb_channels = aout_FormatNbChannels(fmt);
+    
+    if (nb_channels == 0)
+        return VLC_EGENERIC;
+    
     /* BSoundPlayer does not support more than 2 channels AFAIK */
     if(nb_channels > 2) {
         nb_channels = 2;
@@ -193,7 +197,6 @@ static int Start(audio_output_t* aout, audio_sample_format_t* restrict fmt)
     format->channel_count = nb_channels;
     
     uint32 audio_format;
-    uin32 endian = B_MEDIA_LITTLE_ENDIAN;
     switch (fmt->i_format) {
         case VLC_CODEC_S8:
         {
@@ -205,38 +208,26 @@ static int Start(audio_output_t* aout, audio_sample_format_t* restrict fmt)
             audio_format = media_raw_audio_format::B_AUDIO_UCHAR;
             break;
         }
-        case VLC_CODEC_S16L:
+        case VLC_CODEC_S16N:
         {
             audio_format = media_raw_audio_format::B_AUDIO_SHORT;
             break;   
         }
-        case VLC_CODEC_S16B:
-        {
-            audio_format = media_raw_audio_format::B_AUDIO_SHORT;
-            endian = B_MEDIA_BIG_ENDIAN;
-            break;   
-        }
-        case VLC_CODEC_S32L:
+        case VLC_CODEC_S32N:
         {
             audio_format = media_raw_audio_format::B_AUDIO_INT;
             break;   
         }
-        case VLC_CODEC_S32B:
-        {
-            audio_format = media_raw_audio_format::B_AUDIO_INT;
-            endian = B_MEDIA_BIG_ENDIAN;
-            break;   
-        }
-        case VLC_CODEC_F32L:
+        case VLC_CODEC_FL32:
         {
             audio_format = media_raw_audio_format::B_AUDIO_FLOAT;
             break;   
         }
-        case VLC_CODEC_F32B:
+        case VLC_CODEC_FL64:
         {
+            fmt->i_format = VLC_CODEC_FL32;
             audio_format = media_raw_audio_format::B_AUDIO_FLOAT;
-            endian = B_MEDIA_BIG_ENDIAN;
-            break;    
+            break;
         }
         default:
         {
@@ -252,15 +243,22 @@ static int Start(audio_output_t* aout, audio_sample_format_t* restrict fmt)
             {
                 fmt->i_format = VLC_CODEC_S16N;
                 audio_format = media_raw_audio_format::B_AUDIO_SHORT;
-                endian = B_MEDIA_HOST_ENDIAN;
             }
             break;
         }
     }
     
     format->format = audio_format;
-    format->byte_order = endian;
+    format->byte_order = B_MEDIA_HOST_ENDIAN;
     
+    status_t error = B_ERROR;
+    BMediaRoster* roster = BMediaRoster::Roster(&error);
+    
+    if (error != B_OK)
+        format->buffer_size = 0;
+    else
+        format->buffer_size = roster->AudioBufferSizeFor(format->channels,
+            format->format, format->frame_rate, B_UNKNOWN_BUS);
     
     sys->player->Start();
 
