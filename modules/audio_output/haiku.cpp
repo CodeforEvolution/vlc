@@ -260,6 +260,16 @@ static int Start(audio_output_t* aout, audio_sample_format_t* restrict fmt)
         format->buffer_size = roster->AudioBufferSizeFor(format->channels,
             format->format, format->frame_rate, B_UNKNOWN_BUS);
     
+    sys->player = new BSoundPlayer(format, "VLC Audio Player", PlayBuffer,
+        NULL, aout);
+    if(sys->player->InitCheck() != B_OK)
+    {
+        msg_Err(aout, "BSoundPlayer InitCheck() failed");
+        delete sys->player;
+        free(sys);
+        return VLC_EGENERIC;
+    }
+    
     sys->player->Start();
 
     return VLC_SUCCESS;
