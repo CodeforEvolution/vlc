@@ -106,10 +106,10 @@ int OpenAudio ( vlc_object_t * p_this )
  *****************************************************************************/
 typedef struct aout_sys_t
 {
-    BSoundPlayer*  player;
-    block_fifo_t*  data;
-    bool           mute;
-    float          volume;
+    BSoundPlayer*        player;
+    block_bytestream_t*  buffers;
+    bool                 mute;
+    float                volume;
 } aout_sys_t;
 
 /*****************************************************************************
@@ -149,8 +149,9 @@ static int Start(audio_output_t* aout, audio_sample_format_t* restrict fmt)
 {
     aout_sys_t* sys = aout->sys;
     
-    sys->data = block_FifoNew();
+    block_BytestreamInit(sys->buffers);
 
+    /* TODO: Support for Encoded Audio
     switch (fmt->i_format)
     {
         case VLC_CODEC_A52:
@@ -167,13 +168,8 @@ static int Start(audio_output_t* aout, audio_sample_format_t* restrict fmt)
             fmt->i_bytes_per_frame = 16;
             fmt->i_frame_length = 1;
             break;
-        default:
-            assert(AOUT_FMT_LINEAR(fmt));
-            assert(aout_FormatNbChannels(fmt) > 0);
-            fmt->i_format = HAVE_FPU ? VLC_CODEC_FL32 : VLC_CODEC_S16N;
-            fmt->channel_type = AUDIO_CHANNEL_TYPE_BITMAP;
-            break;
     }
+    */
     
     int nb_channels = aout_FormatNbChannels(fmt);
     
@@ -186,7 +182,6 @@ static int Start(audio_output_t* aout, audio_sample_format_t* restrict fmt)
         fmt.i_physical_channels
             = AOUT_CHAN_LEFT | AOUT_CHAN_RIGHT;
     }
-    aout_FormatPrepare(fmt);
     
     media_raw_audio_format* format;
     format = (media_raw_audio_format*)
@@ -247,6 +242,7 @@ static int Start(audio_output_t* aout, audio_sample_format_t* restrict fmt)
             break;
         }
     }
+    aout_FormatPrepare(fmt);
 
     format->format = audio_format;
     format->byte_order = B_MEDIA_HOST_ENDIAN;
@@ -284,9 +280,8 @@ static void Stop(audio_output_t* aout)
     
     sys->player->SetHasData(false);
     sys->player->Stop(true, false);
-    
-    vlc_fifo_Lock(sys->data);
-    block_FifoRelease(sys->data);
+
+    block_BytestreamRelease(sys->buffers);
 }
 
 /*****************************************************************************
@@ -295,9 +290,8 @@ static void Stop(audio_output_t* aout)
 static void TimeGet(audio_output_t* aout, vlc_tick_t* delay)
 {
     aout_sys_t* sys = aout->sys;
-    aout_sample_format_t* format = &sys->format;
     
-    *delay = sys->player->Latency() + vlc_ticks_from_samples(, format->i_rate);
+    *delay = sys->player->Latency();
 }
 
 /*****************************************************************************
@@ -307,9 +301,7 @@ static void Play(audio_output_t* aout, block_t* block, vlc_tick_t date)
 {
     aout_sys_t* sys = aout->sys;
     
-    vlc_fifo_Lock(sys->data);
-    block_FifoPut(sys->data, block);
-    vlc_fifo_Unlock(sys->data);
+    block_BytestreamPush(sys->buffers, block);
     
     sys->player->SetHasData(true);
     
@@ -365,9 +357,19 @@ static void Flush(audio_output_t* aout)
     
     sys->player->SetHasData(false);
     
-    vlc_fifo_Lock(sys->data);
-    block_FifoEmpty(sys->data);
-    vlc_fifo_Unlock(sys->data);
+    block_BytestreamEmpty(sys->buffers);
+}
+
+/*****************************************************************************
+ * Drain
+ *****************************************************************************/
+static void Drain(audio_output_t* aout)
+{
+    aout_sys_t* sys = aout->sys;
+    
+    sys->player->SetHasData(false);
+    
+    block_BytestreamFlush(sys->buffers);
 }
 
 /*****************************************************************************
@@ -422,7 +424,7 @@ static int Open(vlc_object_t* obj)
     aout->play = Play;
     aout->pause = Pause;
     aout->flush = Flush;
-    aout->drain = NULL;
+    aout->drain = Drain;
     aout->volume_set = VolumeSet;
     aout->mute_set = MuteSet;
     aout->device_select = NULL;
