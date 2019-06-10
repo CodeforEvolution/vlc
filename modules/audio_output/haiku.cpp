@@ -95,6 +95,7 @@ int OpenAudio ( vlc_object_t * p_this )
 #include <vlc_common.h>
 #include <vlc_plugin.h>
 #include <vlc_aout.h>
+#include <vlc_block_helper.h>
 #include <vlc_cpu.h>
 
 #include <media/MediaDefs.h>
@@ -123,7 +124,6 @@ static void PlayBuffer  (void* aout, void* buffer, size_t size,
                             const media_raw_audio_format& format);
 static void Pause       (audio_output_t* aout, bool paused, vlc_tick_t date);
 static void Flush       (audio_output_t* aout);
-static void Drain       (audio_output_t* aout);
 static int  VolumeSet   (audio_output_t* aout, float volume)
 static int  MuteSet     (audio_output_t* aout, bool mute)
 static int  Open        (vlc_object_t* obj);
@@ -314,23 +314,14 @@ static void Play(audio_output_t* aout, block_t* block, vlc_tick_t date)
 static void PlayBuffer(void* aout, void* buffer, size_t size,
                           const media_raw_audio_format &format)
 {
-    // TODO
+    // NEEDS TESTING
     audio_output_t* aout = (audio_output_t*)aout;
     aout_sys_t* sys = aout->sys;
 
-    aout_buffer = aout_OutputNextBuffer(aout, mdate() + sys->latency, false);
+    int result = block_GetBytes(sys->buffers, buffer, size);
     
-    if (aout_buffer != NULL)
-    {
-        vlc_memcpy(buffer, aout_buffer->buffer,
-            MIN(size, aout_buffer->nb_bytes));
-        if(aout_buffer->nb_bytes < size)
-        {
-            vlc_memset(buffer + aout_buffer->nb_bytes,
-                0, size - aout_buffer->nb_bytes);
-        }
-        aout_BufferFree(aout_buffer);
-    }
+    if (result != VLC_SUCCESS)
+        sys->player->SetHasData(false);
 }
 
 /*****************************************************************************
@@ -358,18 +349,6 @@ static void Flush(audio_output_t* aout)
     sys->player->SetHasData(false);
     
     block_BytestreamEmpty(sys->buffers);
-}
-
-/*****************************************************************************
- * Drain
- *****************************************************************************/
-static void Drain(audio_output_t* aout)
-{
-    aout_sys_t* sys = aout->sys;
-    
-    sys->player->SetHasData(false);
-    
-    block_BytestreamFlush(sys->buffers);
 }
 
 /*****************************************************************************
@@ -424,7 +403,7 @@ static int Open(vlc_object_t* obj)
     aout->play = Play;
     aout->pause = Pause;
     aout->flush = Flush;
-    aout->drain = Drain;
+    aout->drain = NULL;
     aout->volume_set = VolumeSet;
     aout->mute_set = MuteSet;
     aout->device_select = NULL;
