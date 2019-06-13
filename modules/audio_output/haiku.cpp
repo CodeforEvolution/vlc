@@ -1,65 +1,3 @@
-
-
-/*****************************************************************************
- * OpenAudio
- *****************************************************************************/
-int OpenAudio ( vlc_object_t * p_this )
-{
-    aout_instance_t * p_aout = (aout_instance_t*) p_this;
-    p_aout->output.p_sys = (aout_sys_t*) malloc( sizeof( aout_sys_t ) );
-    if( p_aout->output.p_sys == NULL )
-        return -1;
-
-    aout_sys_t * p_sys = p_aout->output.p_sys;
-
-    aout_VolumeSoftInit( p_aout );
-
-    int i_nb_channels = aout_FormatNbChannels( &p_aout->output.output );
-    /* BSoundPlayer does not support more than 2 channels AFAIK */
-    if( i_nb_channels > 2 )
-    {
-        i_nb_channels = 2;
-        p_aout->output.output.i_physical_channels
-            = AOUT_CHAN_LEFT | AOUT_CHAN_RIGHT;
-    }
-
-    media_raw_audio_format * p_format;
-    p_format = (media_raw_audio_format*)
-        malloc( sizeof( media_raw_audio_format ) );
-
-    p_format->channel_count = i_nb_channels;
-    p_format->frame_rate = p_aout->output.output.i_rate;
-    p_format->format = media_raw_audio_format::B_AUDIO_FLOAT;
-#ifdef WORDS_BIGENDIAN
-    p_format->byte_order = B_MEDIA_BIG_ENDIAN;
-#else
-    p_format->byte_order = B_MEDIA_LITTLE_ENDIAN;
-#endif
-    p_format->buffer_size = 8192;
-
-    p_aout->output.output.i_format = VLC_FOURCC('f','l','3','2');
-    p_aout->output.i_nb_samples = 2048 / i_nb_channels;
-    p_aout->output.pf_play = DoNothing;
-
-    p_sys->p_player = new BSoundPlayer( p_format, "player", Play, NULL, p_aout );
-    if( p_sys->p_player->InitCheck() != B_OK )
-    {
-        msg_Err( p_aout, "BSoundPlayer InitCheck failed" );
-        delete p_sys->p_player;
-        free( p_sys );
-        return -1;
-    }
-
-    /* Start playing */
-    p_sys->latency = p_sys->p_player->Latency();
-    p_sys->p_player->Start();
-    p_sys->p_player->SetHasData(true);
-
-    return 0;
-}
-
-// New stuff - Don't worry, a squash commit will make sure this comment never existed
-
 /*****************************************************************************
  * haiku.cpp: Haiku audio output
  *****************************************************************************
@@ -317,8 +255,12 @@ static void PlayBuffer(void* aout, void* buffer, size_t size,
     // NEEDS TESTING
     audio_output_t* aout = (audio_output_t*)aout;
     aout_sys_t* sys = aout->sys;
+    
+    size_t length = size;
+    size_t remaining = block_BytestreamRemaining(sys->buffers);
+    length = length > remaining ? remaining : length;
 
-    int result = block_GetBytes(sys->buffers, buffer, size);
+    int result = block_GetBytes(sys->buffers, buffer, length);
     
     if (result != VLC_SUCCESS)
         sys->player->SetHasData(false);
@@ -418,6 +360,9 @@ static void Close(vlc_object_t* obj)
 {
     audio_output_t* aout = (audio_output_t*)obj;
     aout_sys_t* sys = aout->sys;
+    
+    delete sys->player;
+    block_BytestreamRelease(sys->buffers);
     
     free(sys);
 }
