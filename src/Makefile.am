@@ -503,6 +503,7 @@ endif
 endif
 endif
 endif
+endif
 
 if ENABLE_SOUT
 libvlccore_la_SOURCES += \
@@ -612,7 +613,7 @@ test_mrl_helpers_SOURCES = test/mrl_helpers.c
 test_arrays_SOURCES = test/arrays.c
 test_vector_SOURCES = test/vector.c
 test_shared_data_ptr_SOURCES = test/shared_data_ptr.cpp
-test_extensions_SOURCES = test/extensions.c 
+test_extensions_SOURCES = test/extensions.c
 test_playlist_SOURCES = playlist/test.c \
 	playlist/content.c \
 	playlist/control.c \

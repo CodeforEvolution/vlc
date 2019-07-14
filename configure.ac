@@ -352,6 +352,12 @@ case "${host_os}" in
     AC_LIBOBJ([recvmsg])
     AC_LIBOBJ([sendmsg])
     ;;
+   *haiku*)
+    SYS=haiku
+    VLC_ADD_LIBS([libvlccore libvlc vlc],[-lnetwork -lbe])
+    VLC_ADD_PLUGIN([haiku_aout])
+    VLC_ADD_LIBS([haiku_aout],[-lmedia])
+    ;;
   *)
     SYS="${host_os}"
     ;;
@@ -395,6 +401,7 @@ AS_IF([test "${SYS}" = "mingw32"],[
 AM_CONDITIONAL([HAVE_FREEBSD], [test "${SYS}" = "freebsd"])
 AM_CONDITIONAL([HAVE_LINUX],   [test "${SYS}" = "linux"])
 AM_CONDITIONAL([HAVE_OS2],     [test "${SYS}" = "os2"])
+AM_CONDITIONAL([HAVE_HAIKU],   [test "${SYS}" = "haiku"])
 
 AM_CONDITIONAL([HAVE_DARWIN],  [test "${SYS}" = "darwin"])
 AM_CONDITIONAL([HAVE_IOS],     [test "${HAVE_IOS}" = "1"])
@@ -739,6 +746,9 @@ AC_SEARCH_LIBS(connect, [socket], [
 ], [
   AS_IF([test "${SYS}" = "mingw32"], [
     SOCKET_LIBS="-lws2_32 -liphlpapi"
+  ])
+  AS_IF([test "${SYS}" = "haiku"], [
+    SOCKET_LIBS="-lnetwork"
   ])
 ])
 
@@ -3315,7 +3325,7 @@ dnl  X C Bindings modules
 dnl
 AC_ARG_ENABLE([xcb],
   AS_HELP_STRING([--enable-xcb], [X11 support with XCB (default enabled)]),, [
-  AS_IF([test "${SYS}" != "mingw32" -a "${SYS}" != "darwin"], [
+  AS_IF([test "${SYS}" != "mingw32" -a "${SYS}" != "darwin" -a "${SYS}" != "haiku"], [
     enable_xcb="yes"
   ], [
     enable_xcb="no"
@@ -4425,7 +4435,7 @@ AC_ARG_WITH(kde-solid,
   AS_HELP_STRING([--with-kde-solid=PATH],
                  [KDE Solid actions directory (auto)]),, [
 
-if test "${SYS}" != "mingw32" -a "${SYS}" != "darwin" -a "${HAVE_ANDROID}" != "1" ; then
+if test "${SYS}" != "mingw32" -a "${SYS}" != "darwin" -a "${SYS}" != "haiku" -a "${HAVE_ANDROID}" != "1" ; then
   with_kde_solid="yes"
 fi
 ])

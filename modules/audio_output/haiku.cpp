@@ -37,7 +37,7 @@
 #include <vlc_cpu.h>
 
 #include <media/MediaDefs.h>
-#include <media/Roster.h>
+#include <media/MediaRoster.h>
 #include <media/SoundPlayer.h>
 
 /*****************************************************************************
@@ -55,7 +55,7 @@ typedef struct aout_sys_t
  * Local prototypes
  *****************************************************************************/
 static int Start        (audio_output_t* aout, audio_sample_format_t* restrict fmt)
-static void Stop        (audio_output_t* aout)    
+static void Stop        (audio_output_t* aout)
 static int  TimeGet     (audio_output_t* aout, vlc_tick_t* delay);
 static void Play        (audio_output_t* aout, block_t* block, vlc_tick_t tick);
 static void PlayBuffer  (void* aout, void* buffer, size_t size,
@@ -86,7 +86,7 @@ vlc_module_end ()
 static int Start(audio_output_t* aout, audio_sample_format_t* restrict fmt)
 {
     aout_sys_t* sys = aout->sys;
-    
+
     block_BytestreamInit(sys->buffers);
 
     /* TODO: Support for Encoded Audio
@@ -108,33 +108,32 @@ static int Start(audio_output_t* aout, audio_sample_format_t* restrict fmt)
             break;
     }
     */
-    
+
     int nb_channels = aout_FormatNbChannels(fmt);
-    
+
     if (nb_channels == 0)
         return VLC_EGENERIC;
-    
+
     /* BSoundPlayer does not support more than 2 channels AFAIK */
     if(nb_channels > 2) {
         nb_channels = 2;
         fmt.i_physical_channels
             = AOUT_CHAN_LEFT | AOUT_CHAN_RIGHT;
     }
-    
+
     media_raw_audio_format* format;
-    format = (media_raw_audio_format*)
-        malloc(sizeof(media_raw_audio_format));
-    
+    format = (media_raw_audio_format*)malloc(sizeof(media_raw_audio_format));
+
     if (unlikely(format == NULL))
         return VLC_ENOMEM;
-    
+
     format = media_raw_audio_format::wildcard;
-    
+
     format->frame_rate = fmt->i_rate;
     format->channel_count = nb_channels;
-    
+
     fmt->channel_type = AUDIO_CHANNEL_TYPE_BITMAP;
-    
+
     uint32 audio_format;
     switch (fmt->i_format) {
         case VLC_CODEC_S8:
@@ -150,17 +149,17 @@ static int Start(audio_output_t* aout, audio_sample_format_t* restrict fmt)
         case VLC_CODEC_S16N:
         {
             audio_format = media_raw_audio_format::B_AUDIO_SHORT;
-            break;   
+            break;
         }
         case VLC_CODEC_S32N:
         {
             audio_format = media_raw_audio_format::B_AUDIO_INT;
-            break;   
+            break;
         }
         case VLC_CODEC_FL32:
         {
             audio_format = media_raw_audio_format::B_AUDIO_FLOAT;
-            break;   
+            break;
         }
         case VLC_CODEC_FL64:
         {
@@ -176,7 +175,7 @@ static int Start(audio_output_t* aout, audio_sample_format_t* restrict fmt)
             fmt->i_format = HAVE_FPU ? VLC_CODEC_FL32 : VLC_CODEC_S16N;
             audio_format = HAVE_FPU ? media_raw_audio_format:B_AUDIO_FLOAT :
                 media_raw_audio_format::B_AUDIO_SHORT
-      
+
             break;
         }
     }
@@ -184,16 +183,16 @@ static int Start(audio_output_t* aout, audio_sample_format_t* restrict fmt)
 
     format->format = audio_format;
     format->byte_order = B_MEDIA_HOST_ENDIAN;
-    
+
     status_t error = B_ERROR;
     BMediaRoster* roster = BMediaRoster::Roster(&error);
-    
+
     if (error != B_OK)
         format->buffer_size = media_raw_audio_format::wildcard.buffer_size;
     else
         format->buffer_size = roster->AudioBufferSizeFor(format->channels,
             format->format, format->frame_rate, B_UNKNOWN_BUS);
-    
+
     sys->player = new BSoundPlayer(format, "VLC Audio Player", PlayBuffer,
         NULL, aout);
     if(sys->player->InitCheck() != B_OK)
@@ -203,7 +202,7 @@ static int Start(audio_output_t* aout, audio_sample_format_t* restrict fmt)
         free(sys);
         return VLC_EGENERIC;
     }
-    
+
     sys->player->Start();
 
     return VLC_SUCCESS;
@@ -215,7 +214,7 @@ static int Start(audio_output_t* aout, audio_sample_format_t* restrict fmt)
 static void Stop(audio_output_t* aout)
 {
     aout_sys_t* sys = aout->sys;
-    
+
     sys->player->SetHasData(false);
     sys->player->Stop(true, false);
 
@@ -228,7 +227,7 @@ static void Stop(audio_output_t* aout)
 static void TimeGet(audio_output_t* aout, vlc_tick_t* delay)
 {
     aout_sys_t* sys = aout->sys;
-    
+
     *delay = sys->player->Latency();
 }
 
@@ -238,11 +237,11 @@ static void TimeGet(audio_output_t* aout, vlc_tick_t* delay)
 static void Play(audio_output_t* aout, block_t* block, vlc_tick_t date)
 {
     aout_sys_t* sys = aout->sys;
-    
+
     block_BytestreamPush(sys->buffers, block);
-    
+
     sys->player->SetHasData(true);
-    
+
     (void)date;
 }
 
@@ -255,13 +254,13 @@ static void PlayBuffer(void* aout, void* buffer, size_t size,
     // NEEDS TESTING
     audio_output_t* aout = (audio_output_t*)aout;
     aout_sys_t* sys = aout->sys;
-    
+
     size_t length = size;
     size_t remaining = block_BytestreamRemaining(sys->buffers);
     length = length > remaining ? remaining : length;
 
     int result = block_GetBytes(sys->buffers, buffer, length);
-    
+
     if (result != VLC_SUCCESS)
         sys->player->SetHasData(false);
 }
@@ -272,12 +271,12 @@ static void PlayBuffer(void* aout, void* buffer, size_t size,
 static void Pause(audio_output_t* aout, bool paused, vlc_tick_t date)
 {
     aout_sys_t* sys = aout->sys;
-    
+
     if (paused)
         sys->player->SetHasData(false);
     else
         sys->player->SetHasData(true);
-    
+
     (void)date;
 }
 
@@ -287,9 +286,9 @@ static void Pause(audio_output_t* aout, bool paused, vlc_tick_t date)
 static void Flush(audio_output_t* aout)
 {
     aout_sys_t* sys = aout->sys;
-    
+
     sys->player->SetHasData(false);
-    
+
     block_BytestreamEmpty(sys->buffers);
 }
 
@@ -315,10 +314,10 @@ static int VolumeSet(audio_output_t* aout, float volume)
 static int MuteSet(audio_output_t* aout, bool mute)
 {
     aout_sys_t* sys = aout->sys;
-    
+
     sys->mute = mute;
     aout_MuteReport(aout, mute);
-    
+
     if (mute == false)
         sys->player->SetVolume(sys->volume);
     else
@@ -360,9 +359,9 @@ static void Close(vlc_object_t* obj)
 {
     audio_output_t* aout = (audio_output_t*)obj;
     aout_sys_t* sys = aout->sys;
-    
+
     delete sys->player;
     block_BytestreamRelease(sys->buffers);
-    
+
     free(sys);
 }

@@ -36,7 +36,7 @@
 #include <vlc_block.h>
 #include <vlc_plugin.h>
 #include <vlc_vout_display.h>
-#if !defined(_WIN32) && !defined(__APPLE__)
+#if !defined(_WIN32) && !defined(__APPLE__) && !defined(__HAIKU__)
 # ifdef X_DISPLAY_MISSING
 #  error Xlib required due to XInitThreads
 # endif
