@@ -29,7 +29,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
+
+#ifdef __HAIKU__
+# include <bsd/time.h>
+#else
+# include <time.h>
+#endif
 
 #include <vlc_common.h>
 #include <vlc_http.h>

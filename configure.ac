@@ -354,9 +354,10 @@ case "${host_os}" in
     ;;
    *haiku*)
     SYS=haiku
-    VLC_ADD_LIBS([libvlccore libvlc vlc],[-lnetwork -lbe])
-    VLC_ADD_PLUGIN([haiku_aout])
-    VLC_ADD_LIBS([haiku_aout],[-lmedia])
+    AC_LIBOBJ([recvmsg])
+    AC_LIBOBJ([sendmsg])
+    AC_LIBOBJ([tdestroy])
+    AC_LIBOBJ([timegm])
     ;;
   *)
     SYS="${host_os}"

@@ -30,7 +30,7 @@
 # include <search.h>
 #endif
 
-#ifdef HAVE_TFIND
+#if defined(HAVE_TFIND) || defined(__HAIKU__)
 static __thread struct
 {
     const void **tab;

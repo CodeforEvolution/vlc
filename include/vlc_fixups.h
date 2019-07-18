@@ -33,7 +33,8 @@
 
 /* C++11 says there's no need to define __STDC_*_MACROS when including
  * inttypes.h and stdint.h. */
-#if defined (__cplusplus) && (defined(__MINGW32__) || defined(__UCLIBC__) || defined(__native_client__))
+#if defined (__cplusplus) && (defined(__MINGW32__) || defined(__UCLIBC__) \
+ || defined(__native_client__) || defined(__HAIKU__))
 # ifndef __STDC_FORMAT_MACROS
 #  define __STDC_FORMAT_MACROS 1
 # endif
@@ -105,7 +106,8 @@ typedef struct
 
 #if !defined (HAVE_GETDELIM) || \
     !defined (HAVE_GETPID)   || \
-    !defined (HAVE_SWAB)
+    !defined (HAVE_SWAB)     || \
+     defined (__HAIKU__)
 # include <sys/types.h> /* ssize_t, pid_t */
 #endif
 
@@ -244,7 +246,7 @@ struct tm *gmtime_r (const time_t *, struct tm *);
 struct tm *localtime_r (const time_t *, struct tm *);
 #endif
 
-#ifndef HAVE_TIMEGM
+#if !defined(HAVE_TIMEGM) || defined(__HAIKU__)
 time_t timegm(struct tm *);
 #endif
 
@@ -505,7 +507,7 @@ void *lfind( const void *key, const void *base, size_t *nmemb,
          lfind((a),(b), &(unsigned){ (*(c) > UINT_MAX) ? UINT_MAX : *(c) }, (d),(e))
 #endif /* _WIN64 */
 
-#ifndef HAVE_TDESTROY
+#if !defined(HAVE_TDESTROY) || defined(__HAIKU__)
 void tdestroy( void *root, void (*free_node)(void *nodep) );
 #endif
 
