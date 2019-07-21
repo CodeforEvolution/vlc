@@ -172,7 +172,7 @@ static vlc_plugin_t *module_InitStatic(vlc_plugin_cb entry)
     return lib;
 }
 
-#if defined(__ELF__) || !HAVE_DYNAMIC_PLUGINS
+#if (defined(__ELF__) || !HAVE_DYNAMIC_PLUGINS) && !defined(__HAIKU__)
 VLC_WEAK
 extern vlc_plugin_cb vlc_static_modules[];
 
