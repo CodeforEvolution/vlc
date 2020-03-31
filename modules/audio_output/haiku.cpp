@@ -263,6 +263,8 @@ static void PlayBuffer(void* cookie, void* buffer, size_t size,
 
     if (result != VLC_SUCCESS)
         sys->player->SetHasData(false);
+
+    (void)format;
 }
 
 /*****************************************************************************
@@ -360,7 +362,9 @@ static void Close(vlc_object_t* obj)
     audio_output_t* aout = (audio_output_t*)obj;
     aout_sys_t* sys = (aout_sys_t*)aout->sys;
 
-    delete sys->player;
+    if (sys->player != NULL)
+        delete sys->player;
+
     block_BytestreamRelease(sys->buffers);
 
     free(sys);
